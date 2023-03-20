@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QComboBox, QLineE
 
 class TCPConnect(QMainWindow):
     def __init__(self):
-        super(TCPConnect, self).__init__()
+        QMainWindow.__init__(self)
 
         self.connection_type = None
         self.current_socket = None
@@ -164,6 +164,7 @@ class TCPConnect(QMainWindow):
 
         self.label_user_name.setVisible(True)
         self.line_edit_user_name.setVisible(True)
+        self.line_edit_user_name.setEnabled(True)
 
         self.button_connection.setText('Подключиться')
         self.button_connection.setGeometry(10, 110, 135, 30)
@@ -207,9 +208,15 @@ class TCPConnect(QMainWindow):
         self.label_server_status.setVisible(False)
 
         if self.connection_type == 'server':
+            self.thread_server_connection.stop()
+            self.thread_server_connection = None
             self.label_server_status.setVisible(False)
 
         elif self.connection_type == 'client':
+            if self.thread_input:
+                self.thread_input.stop()
+                self.thread_input = None
+            self.line_edit_user_name.clear()
             self.label_user_name.setVisible(False)
             self.line_edit_user_name.setVisible(False)
 
@@ -288,7 +295,7 @@ class TCPConnect(QMainWindow):
 
                 self.connection_mode()
         elif self.connection_type == 'client':
-            if self.line_edit_user_name.text() == '':
+            if not self.line_edit_user_name.text():
                 self.message_box.setIcon(QMessageBox.Information)
                 self.message_box.setText('Введите имя пользователя!')
                 self.message_box.setStandardButtons(QMessageBox.Ok)
@@ -352,7 +359,7 @@ class TCPConnect(QMainWindow):
             self.current_socket = None
 
     def send(self) -> None:
-        if self.combo_box_recipient_user_name.currentText() != '':
+        if self.combo_box_recipient_user_name.currentText():
             recipient = self.combo_box_recipient_user_name.currentText()
             send_message = self.line_edit_message.text()
             self.current_socket.send(f'{recipient}!&?%{send_message}!&?%'.encode())
@@ -439,7 +446,7 @@ class ThreadInput(QThread):
                 try:
                     self.socket[0].send(''.encode())
                     get_message = self.socket[0].recv(1024).decode('UTF-8')
-                except:
+                except Exception:
                     self.connected_to_server_users.remove(self.socket)
                     try:
                         for i in range(len(self.connected_to_server_users)):
@@ -460,7 +467,7 @@ class ThreadInput(QThread):
                                                              f'{len(self.connected_to_server_users)}')
                             self.label_server_status.adjustSize()
                         self.stop()
-                    except:
+                    except Exception:
                         pass
                 else:
                     if len(get_message) != 0 and not get_message.startswith('check'):
@@ -485,10 +492,10 @@ class ThreadInput(QThread):
                 except ConnectionResetError or ConnectionAbortedError:
                     self.server_disconnect_signal.emit('Сервер отключён!')
                     self.stop()
-                except:
+                except Exception:
                     self.stop()
                 else:
-                    if get_message == '':
+                    if not get_message:
                         pass
                     elif get_message.startswith('USERS_LIST'):
                         accepted_users_list = [user for user in get_message.split(',')][1:]
@@ -507,7 +514,6 @@ class ThreadInput(QThread):
 
     def stop(self):
         self.flag = False
-
         if self.connection_type == 'client':
             self.socket.close()
 
@@ -519,90 +525,3 @@ if __name__ == '__main__':
     sys.exit(app.exec_())
 
 # pyinstaller -w -F --onefile --upx-dir=D:\UPX main.py
-
-# class ThreadInput(QThread):
-#     def __init__(self, input_socket, connection_type, connected_to_server_users, combo_box_recipient_user_name, label_server_status,
-#                  plain_text_edit_status_report):
-#         QThread.__init__(self)
-#         self.flag = True
-#         self.socket = input_socket
-#         self.connection_type = connection_type
-#         self.connected_to_server_users = connected_to_server_users
-#         self.combo_box_recipient_user_name = combo_box_recipient_user_name
-#         self.label_server_status = label_server_status
-#         self.plain_text_edit_status_report = plain_text_edit_status_report
-#
-#     def run(self) -> None:
-#         self.input_update()
-#
-#     def input_update(self):
-#         if self.connection_type == 'server':
-#             while self.flag:
-#                 try:
-#                     self.socket[0].send('CHECK_USER'.encode())
-#                     message = self.socket[0].recv(1024).decode('UTF-8')
-#
-#                 except Exception as e:
-#                     print(e)
-#                     self.socket[0].close()
-#                     self.connected_to_server_users.remove(self.socket)
-#                     time = localtime()
-#                     current_time = strftime("%H:%M:%S", time)
-#                     self.plain_text_edit_status_report.insertPlainText(
-#                         f'{current_time} Disconnected {self.socket[1]} as {self.socket[2]}\n')
-#                     self.flag = False
-#                 else:
-#                     if message != 'CHECK_USER' and message != '':
-#                         time = localtime()
-#                         current_time = strftime("%H:%M:%S", time)
-#                         self.plain_text_edit_status_report.insertPlainText(f'{current_time} Send message from  {self.socket[1]} to {""}: {message}')
-#                 self.label_server_status.setText(f'Статус:\n'
-#                                                  f'Сервер подключён\n'
-#                                                  f'Количество подключённых пользователей: '
-#                                                  f'{len(self.connected_to_server_users)}')
-#
-#
-#                 if len(self.connected_to_server_users) > 1:
-#                     for i in range(len(self.connected_to_server_users)):
-#                         connected_to_server_users_string = ''
-#                         for j, client in enumerate(self.connected_to_server_users):
-#                             if j != i:
-#                                 connected_to_server_users_string += f',{client[2]}'
-#                         self.connected_to_server_users[i][0].send(
-#                             f'USERS_LIST{connected_to_server_users_string}'.encode())
-#
-#         elif self.connection_type == 'client':
-#             while self.flag:
-#                 try:
-#                     message = self.socket.recv(1024).decode('UTF-8')
-#                     h = self.socket
-#                 except:
-#                     pass
-#                 else:
-#                     if message == 'CHECK_USER':
-#                         try:
-#                             self.socket.send('CHECK_USER'.encode())
-#                         except:
-#                             pass
-#                     elif message.startswith('USERS_LIST'):
-#                         accepted_users_list = [user for user in message.split(',')][1:]
-#                         # if connected_users != accepted_users_list:
-#                         #     self.combo_box_recipient_user_name.clear()
-#                         for user_name in accepted_users_list:
-#                             # connected_users.append(user_name)
-#                             self.combo_box_recipient_user_name.addItem(user_name)
-#
-#
-#
-#                     else:
-#                         time = localtime()
-#                         current_time = strftime("%H:%M:%S", time)
-#                         self.plain_text_edit_status_report.insertPlainText(
-#                             f'{current_time} Get message from: {message}')
-#                 # sleep(1)
-#
-#     def stop(self):
-#         self.flag = False
-#
-#         if self.connection_type == 'client':
-#             self.socket.close()
